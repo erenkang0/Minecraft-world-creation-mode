@@ -1,0 +1,20 @@
+{
+	"schemaVersion": 1,
+	"id": "realisticworld",
+	"version": "1.0.0+26.2",
+	"name": "Realistic World / Gerçekçi Dünya",
+	"description": "Adds a 'Realistic World' world type with mathematical terrain generation: continent-scale landmasses, linear mountain ranges, realistic elevation distribution, deep oceans, giant caverns, altitude snow lines and layered geology. / Dünya oluşturma ekranına matematiksel arazi üretimi yapan 'Gerçekçi Dünya' dünya türünü ekler.",
+	"authors": [
+		"erenkang0"
+	],
+	"contact": {
+		"sources": "https://github.com/erenkang0/minecraft-world-creation-mode"
+	},
+	"license": "MIT",
+	"icon": "assets/realisticworld/icon.png",
+	"environment": "*",
+	"depends": {
+		"minecraft": "~26.2",
+		"fabric-resource-loader-v0": "*"
+	}
+}

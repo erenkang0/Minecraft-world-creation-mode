@@ -11,10 +11,16 @@ Kontroller:
      kumesi, ayni tipin vanilla 26.2 verisindeki bir orneginin anahtar kumesiyle
      birebir eslesmeli (vanilla, sema icin referans kabul edilir).
   4. Spline sagligi: nokta konumlari artan sirada, offset degerleri makul aralikta.
+  5. Koy dosyalari: NBT sablonlari cozumlenebilir mi (boyut/palet/jigsaw
+     tutarliligi), havuzlarin location referanslarinin NBT karsiliklari var mi,
+     yapi tanimlari codec sinirlarinda mi (size 0..7, mesafe 1..128), NBT
+     icindeki jigsaw havuz referanslari mevcut mu.
 """
 
+import gzip
 import json
 import re
+import struct
 import sys
 import urllib.request
 from pathlib import Path
@@ -110,6 +116,128 @@ def http_exists(url, cache={}):
     return cache[url]
 
 
+def read_nbt(path):
+    """Yapi sablonu NBT okuyucu (gzip'li, buyuk-endian)."""
+    data = gzip.open(path, "rb").read()
+    pos = [0]
+
+    def u8():
+        v = data[pos[0]]; pos[0] += 1; return v
+
+    def rstr():
+        n = struct.unpack_from(">H", data, pos[0])[0]; pos[0] += 2
+        v = data[pos[0]:pos[0] + n].decode(); pos[0] += n; return v
+
+    def payload(t):
+        if t == 1: return u8()
+        if t == 2:
+            v = struct.unpack_from(">h", data, pos[0])[0]; pos[0] += 2; return v
+        if t == 3:
+            v = struct.unpack_from(">i", data, pos[0])[0]; pos[0] += 4; return v
+        if t == 4:
+            v = struct.unpack_from(">q", data, pos[0])[0]; pos[0] += 8; return v
+        if t == 5:
+            v = struct.unpack_from(">f", data, pos[0])[0]; pos[0] += 4; return v
+        if t == 6:
+            v = struct.unpack_from(">d", data, pos[0])[0]; pos[0] += 8; return v
+        if t == 7:
+            n = payload(3); pos[0] += n; return None
+        if t == 8: return rstr()
+        if t == 9:
+            et = u8(); n = payload(3)
+            return [payload(et) for _ in range(n)]
+        if t == 10:
+            d = {}
+            while True:
+                tt = u8()
+                if tt == 0:
+                    return d
+                name = rstr(); d[name] = payload(tt)
+        if t == 11:
+            n = payload(3)
+            v = [struct.unpack_from(">i", data, pos[0] + 4 * i)[0] for i in range(n)]
+            pos[0] += 4 * n; return v
+        if t == 12:
+            n = payload(3); pos[0] += 8 * n; return None
+        raise ValueError(f"bilinmeyen tag {t}")
+
+    t = u8(); rstr()
+    return payload(t)
+
+
+def validate_villages(docs, online):
+    nbt_root = RES / "data/realisticworld/structure"
+    nbts = sorted(nbt_root.rglob("*.nbt")) if nbt_root.exists() else []
+    jigsaw_pools = set()
+    id_re = re.compile(r"^[a-z0-9_.-]+:[a-z0-9_/.-]+$")
+    for p in nbts:
+        try:
+            d = read_nbt(p)
+        except Exception as e:
+            err(f"{p.name}: NBT cozumlenemedi: {e}")
+            continue
+        if d.get("DataVersion") != 4903:
+            err(f"{p.name}: DataVersion 4903 degil: {d.get('DataVersion')}")
+        sx, sy, sz = d["size"]
+        npal = len(d["palette"])
+        entr = streets = 0
+        for b in d["blocks"]:
+            x, y, z = b["pos"]
+            if not (0 <= x < sx and 0 <= y < sy and 0 <= z < sz):
+                err(f"{p.name}: blok sinir disi: {b['pos']}")
+            if not (0 <= b["state"] < npal):
+                err(f"{p.name}: palet indeksi gecersiz: {b['state']}")
+            nbt = b.get("nbt")
+            if nbt:
+                jigsaw_pools.add(nbt["pool"])
+                if nbt["name"] == "minecraft:building_entrance":
+                    entr += 1
+                if nbt["name"] == "minecraft:street":
+                    streets += 1
+        for pal in d["palette"]:
+            if not id_re.match(pal["Name"]):
+                err(f"{p.name}: gecersiz blok kimligi: {pal['Name']}")
+        if p.stem == "plaza" and streets < 4:
+            err(f"{p.name}: meydanin sokak cikisi yetersiz ({streets})")
+        if p.stem in ("manor", "market", "cottage") and entr != 1:
+            err(f"{p.name}: giris jigsaw sayisi 1 olmali ({entr})")
+    print(f"{len(nbts)} NBT sablonu dogrulandi")
+
+    # havuz location -> NBT dosyasi; yapi tanimi sinirlari
+    for p, d in docs.items():
+        sp = str(p)
+        if "template_pool" in sp:
+            for e in d.get("elements", []):
+                loc = e["element"].get("location", "")
+                if loc.startswith("realisticworld:"):
+                    f = nbt_root / (loc.split(":", 1)[1] + ".nbt")
+                    if not f.exists():
+                        err(f"{p.name}: eksik NBT: {loc}")
+        elif "worldgen/structure" in sp and p.suffix == ".json":
+            if not (0 <= d["size"] <= 7):
+                err(f"{p.name}: size codec siniri disinda (0..7): {d['size']}")
+            if not (1 <= d["max_distance_from_center"] <= 128):
+                err(f"{p.name}: max_distance_from_center 1..128 disi")
+            sp_pool = d["start_pool"]
+            if sp_pool.startswith("realisticworld:"):
+                f = RES / "data/realisticworld/worldgen/template_pool" / \
+                    (sp_pool.split(":", 1)[1] + ".json")
+                if not f.exists():
+                    err(f"{p.name}: start_pool bulunamadi: {sp_pool}")
+
+    # NBT jigsaw'larinin referans verdigi vanilla havuzlar
+    for pool in sorted(jigsaw_pools):
+        ns, path = pool.split(":", 1)
+        if ns == "realisticworld":
+            f = RES / "data/realisticworld/worldgen/template_pool" / (path + ".json")
+            if not f.exists():
+                err(f"eksik mod havuzu: {pool}")
+        elif ns == "minecraft" and online:
+            if not http_exists(f"{MCMETA}/template_pool/{path}.json"):
+                err(f"vanilla'da yok: template_pool {pool}")
+    print(f"{len(jigsaw_pools)} jigsaw havuz referansi kontrol edildi")
+
+
 def main():
     online = "--online" in sys.argv
 
@@ -124,10 +252,15 @@ def main():
     if errors:
         sys.exit(1)
 
-    # 2. referans butunlugu (worldgen dosyalari)
+    # 2. referans butunlugu (noise/density function dosyalari;
+    #    template_pool ve structure ayrica 5. adimda ele alinir)
     df_refs, noise_refs = set(), set()
     for p, d in docs.items():
-        if "worldgen" in str(p) and p.suffix == ".json" and "world_preset" not in str(p):
+        sp = str(p)
+        if ("worldgen" in sp and p.suffix == ".json"
+                and "world_preset" not in sp
+                and "template_pool" not in sp
+                and "worldgen/structure" not in sp):
             collect_refs(d, df_refs, noise_refs)
 
     for ref in sorted(df_refs):
@@ -183,6 +316,9 @@ def main():
             rng = (-0.45, 1.6) if p.name == "offset.json" else None
             check_splines(d, p.name, rng)
     print("spline kontrolu tamam")
+
+    # 5. koy dosyalari
+    validate_villages(docs, online)
 
     # world preset etiketi tutarliligi
     tag = docs[RES / "data/minecraft/tags/worldgen/world_preset/normal.json"]

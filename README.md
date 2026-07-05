@@ -31,6 +31,22 @@ içermez, bu sayede hafiftir ve sürüm geçişlerinde kolay güncellenir.
 - **Doğal sütunlar** — kavernalarda taş kolonlar daha sık oluşur.
 - Su/lav gölleri (aquifer) ve cevher damarları (ore veins) vanilla gibi çalışır.
 
+### Büyük Köy Güncellemesi
+- **Çok daha büyük köyler** — jigsaw derinliği 6→7, merkezden azami uzaklık
+  80→128 blok: köyler yaklaşık iki kat alana yayılır.
+- **Planlı köy meydanı** — her köy 15×15 taş döşeli bir meydandan başlar:
+  merkezi çeşme, köy çanı, pazar tezgâhları, fener direkleri, banklar.
+  Meydandan **8 sokak çıkışı** (vanilla 3-4) köyü her yöne doğal biçimde
+  dallandırır.
+- **Özel binalar + vanilla evler bir arada** — ev havuzlarına üç yeni bina
+  eklenir (vanilla evler aynen kalır):
+  *Konak* (iki katlı, 4 yataklı), *Pazar* (yün tenteli açık çarşı),
+  *Kulübe* (bahçeli, kompostorlu). Malzemeler biyoma uyar
+  (meşe/akasya/ladin/kumtaşı); 5 köy biyomunun tamamı desteklenir.
+- Zombi köyü varyantları ve vanilla çeşme/buluşma noktaları düşük
+  ağırlıkla korunur; demir golem, kedi ve köylü yerleşimi vanilla
+  kurallarıyla çalışır.
+
 ### Jeoloji ve yüzey
 - **İrtifaya bağlı kar çizgisi** — y≈144'ten itibaren noise ile dalgalanan,
   y≥172'de kalıcı kar örtüsü; y>190'da buzul (packed ice) yamaları.
@@ -55,14 +71,19 @@ içermez, bu sayede hafiftir ve sürüm geçişlerinde kolay güncellenir.
 
 ```bash
 python3 tools/generate.py --fetch   # vanilla 26.2 verisinden worldgen JSON'larini uret
-python3 tools/validate.py --online  # referans + sema dogrulamasi
+python3 tools/villages.py --fetch   # koy meydani/bina NBT'lerini ve havuzlari uret
+python3 tools/validate.py --online  # referans + sema + NBT dogrulamasi
 ./build.sh                          # dist/ altina jar paketle
 ```
 
 - `tools/generate.py` — vanilla 26.2 worldgen verisini (misode/mcmeta aynası)
   indirir ve üzerine bu modun tüm matematiksel dönüşümlerini uygular. Her
   dönüşüm betiğin başında sabitlerle belgelenmiştir.
-- `tools/validate.py` — üretilen veriyi vanilla 26.2 şemasına karşı doğrular.
+- `tools/villages.py` — köy meydanı ve özel binaları NBT yapı şablonu olarak
+  sıfırdan üretir (harici kütüphane yok), jigsaw havuzlarını ve yapı
+  tanımlarını günceller.
+- `tools/validate.py` — üretilen veriyi vanilla 26.2 şemasına karşı doğrular
+  (JSON şeması, referans bütünlüğü, NBT tutarlılığı).
 - Mod veri odaklı olduğu için jar, `src/main/resources` içeriğinin arşividir;
   Gradle/Loom gerekmez.
 

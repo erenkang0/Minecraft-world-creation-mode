@@ -6,6 +6,7 @@ Dünya oluşturma ekranındaki **Dünya Türü** listesine **"Gerçekçi Dünya"
 - Gerçekçi yükseklik dağılımı: çoğunlukla ova, nadir dramatik zirveler, derin okyanus tabanları
 - Derinlere indikçe devleşen kavernalar, daha geniş tünel ağı, büyük mağara girişleri, doğal sütunlar
 - İrtifaya bağlı kar çizgisi ve buzullar, dik yamaçlarda falezler, geniş kumsallar, katmanlı jeoloji
+- **Büyük Köy Güncellemesi**: ~2× geniş köyler (derinlik 7, yarıçap 128), çeşmeli/çanlı/pazarlı planlı köy meydanı, meydandan 8 sokak çıkışı, biyoma uyumlu 3 özel bina (konak, pazar, kulübe) vanilla evlerle bir arada — 5 köy biyomunun tamamında
 
 ## Kurulum
 1. Minecraft **26.2** için [Fabric Loader](https://fabricmc.net/use/installer/) (≥ 0.18.4) kurun

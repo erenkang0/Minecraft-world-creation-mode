@@ -1,0 +1,103 @@
+name: Verify (gerçek sunucuyla veri yükleme testi)
+
+on:
+  push:
+    branches: ["claude/minecraft-world-gen-mod-pfs14i"]
+  workflow_dispatch:
+
+jobs:
+  server-boot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Mod jar'ini derle
+        run: ./build.sh
+
+      - name: Fabric sunucusunu ve Fabric API'yi indir
+        run: |
+          set -euo pipefail
+          mkdir -p run/mods
+          LOADER=$(curl -sSf https://meta.fabricmc.net/v2/versions/loader/26.2 | jq -r '.[0].loader.version')
+          INSTALLER=$(curl -sSf https://meta.fabricmc.net/v2/versions/installer | jq -r '.[0].version')
+          echo "loader=$LOADER installer=$INSTALLER"
+          curl -sSfL -o run/server.jar \
+            "https://meta.fabricmc.net/v2/versions/loader/26.2/$LOADER/$INSTALLER/server/jar"
+          FAPI_URL=$(curl -sSf 'https://api.modrinth.com/v2/project/fabric-api/version?game_versions=%5B%2226.2%22%5D&loaders=%5B%22fabric%22%5D' \
+            | jq -r '.[0].files[0].url')
+          echo "fabric-api: $FAPI_URL"
+          curl -sSfL -o run/mods/fabric-api.jar "$FAPI_URL"
+          cp dist/*.jar run/mods/
+
+      - name: Sunucuyu Gerçekçi Dünya preset'iyle başlat
+        working-directory: run
+        run: |
+          set -uo pipefail
+          echo "eula=true" > eula.txt
+          cat > server.properties << 'EOF'
+          level-type=realisticworld\:realistic
+          level-seed=1234
+          online-mode=false
+          view-distance=4
+          spawn-protection=0
+          max-tick-time=-1
+          sync-chunk-writes=false
+          EOF
+          mkfifo console
+          (tail -f console | java -Xmx3G -jar server.jar nogui > server.out 2>&1; echo $? > exitcode) &
+          # 15 dakikaya kadar "Done (" bekle
+          ok=0
+          for i in $(seq 1 180); do
+            if grep -q "Done (" server.out 2>/dev/null; then ok=1; break; fi
+            if [ -f exitcode ]; then break; fi
+            sleep 5
+          done
+          if [ "$ok" != "1" ]; then
+            echo "::error::Sunucu 'Done' satirina ulasamadi — veri yukleme hatasi olasi"
+            tail -100 server.out || true
+            exit 1
+          fi
+          # 5 koy yapisini yerlestirerek NBT sablonlarini da yukletmeyi dene
+          for b in plains desert savanna snowy taiga; do
+            echo "place structure minecraft:village_$b 0 120 0" > console
+            sleep 3
+          done
+          sleep 5
+          echo "stop" > console
+          for i in $(seq 1 24); do [ -f exitcode ] && break; sleep 5; done
+          echo "--- son 40 satir ---"; tail -40 server.out
+
+      - name: Gunlukte veri hatasi ara
+        working-directory: run
+        run: |
+          set -uo pipefail
+          fail=0
+          # kayit yukleme / ayristirma hatalari
+          if grep -nE "Failed to (parse|load)|Couldn't parse|Error(s)? in currently|loading registry|Registry loading errors" server.out; then
+            fail=1
+          fi
+          # bizim ad alanimizla iliskili her turlu hata
+          if grep -n "realisticworld" server.out | grep -inE "error|exception|failed|invalid|unknown"; then
+            fail=1
+          fi
+          if [ "$fail" = "1" ]; then
+            echo "::error::Gunlukte mod verisiyle ilgili hata bulundu"
+            exit 1
+          fi
+          echo "Gunluk temiz."
+
+      - name: Gunlugu artifact olarak yukle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-log
+          path: |
+            run/server.out
+            run/logs/latest.log
+          if-no-files-found: ignore

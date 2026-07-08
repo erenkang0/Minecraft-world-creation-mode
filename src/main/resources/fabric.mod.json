@@ -1,7 +1,7 @@
 {
 	"schemaVersion": 1,
 	"id": "realisticworld",
-	"version": "1.1.1+26.2",
+	"version": "1.2.0+26.2",
 	"name": "Realistic World / Gerçekçi Dünya",
 	"description": "Adds a 'Realistic World' world type with mathematical terrain generation: continent-scale landmasses, linear mountain ranges, realistic elevation distribution, deep oceans, giant caverns, altitude snow lines and layered geology. / Dünya oluşturma ekranına matematiksel arazi üretimi yapan 'Gerçekçi Dünya' dünya türünü ekler.",
 	"authors": [

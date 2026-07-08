@@ -41,7 +41,9 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "src/main/resources/data/realisticworld/worldgen"
+RES = ROOT / "src/main/resources"
+OUT = RES / "data/realisticworld/worldgen"
+ARGS = None  # main() ayristirdiktan sonra doldurulur (dunya turu uretimi kullanir)
 MCMETA = "https://raw.githubusercontent.com/misode/mcmeta/26.2-data/data/minecraft/worldgen"
 
 # Fork edilen (kopyalanip degistirilen) vanilla density function'lar.
@@ -300,6 +302,8 @@ def main():
     ap.add_argument("--fetch", action="store_true",
                     help="Eksik referanslari mcmeta'dan indir")
     args = ap.parse_args()
+    global ARGS
+    ARGS = args
 
     if args.fetch:
         fetch_refs(args.ref_dir)
@@ -427,7 +431,127 @@ def main():
 
     settings = retarget(settings)
     dump("noise_settings/realistic.json", settings)
+
+    # --- ek dunya turleri (ayni matematigin guvenli varyantlari)
+    build_world_types(settings)
+
+    # --- dunya turu preset'leri, etiket ve dil dosyalari
+    write_presets_tag_lang()
     print("Tamamlandi.")
+
+
+# --------------------------------------------------------- ek dunya turleri
+
+# (preset_id, ingilizce ad, turkce ad)
+WORLD_TYPES = [
+    ("realistic", "Realistic World", "Gerçekçi Dünya"),
+    ("realistic_islands", "Realistic Islands", "Gerçekçi Adalar"),
+    ("realistic_pangaea", "Realistic Pangaea", "Gerçekçi Tek Kıta"),
+    ("realistic_canyons", "Realistic Canyons", "Gerçekçi Kanyonlar"),
+]
+
+CANYON_FACTOR_GAIN = 1.5   # daha keskin rolyef -> derin kanyonlar, dik zirveler
+
+
+def replace_ref(node, old, new):
+    """Agactaki tum `old` string referanslarini `new` ile degistirir."""
+    if isinstance(node, dict):
+        return {k: replace_ref(v, old, new) for k, v in node.items()}
+    if isinstance(node, list):
+        return [replace_ref(v, old, new) for v in node]
+    return new if node == old else node
+
+
+def build_world_types(realistic_settings):
+    """realistic noise_settings'ten islands/pangaea/canyons varyantlari uretir."""
+    # Adalar: deniz seviyesi yukselir -> ovalar su altinda kalir, tepeler ada olur
+    islands = copy.deepcopy(realistic_settings)
+    islands["sea_level"] = 96
+    dump("noise_settings/realistic_islands.json", islands)
+
+    # Tek Kita: deniz seviyesi duser -> kita sahanligi acilir, genis kara
+    pangaea = copy.deepcopy(realistic_settings)
+    pangaea["sea_level"] = 44
+    dump("noise_settings/realistic_pangaea.json", pangaea)
+
+    # Kanyonlar: factor genligi artar (daha keskin rolyef) + hafif dusuk deniz
+    factor_canyons = load(ARGS.ref_dir, "density_function/overworld/factor.json")
+    transform_spline_values(
+        factor_canyons,
+        lambda v, d: (v * CANYON_FACTOR_GAIN, d * CANYON_FACTOR_GAIN))
+    dump("density_function/factor_canyons.json", retarget(factor_canyons))
+
+    sloped_canyons = retarget(load(
+        ARGS.ref_dir, "density_function/overworld/sloped_cheese.json"))
+    sloped_canyons = replace_ref(
+        sloped_canyons, "realisticworld:factor", "realisticworld:factor_canyons")
+    dump("density_function/sloped_cheese_canyons.json", sloped_canyons)
+
+    canyons = copy.deepcopy(realistic_settings)
+    canyons["sea_level"] = 54
+    canyons["noise_router"] = replace_ref(
+        canyons["noise_router"], "realisticworld:factor",
+        "realisticworld:factor_canyons")
+    canyons["noise_router"] = replace_ref(
+        canyons["noise_router"], "realisticworld:sloped_cheese",
+        "realisticworld:sloped_cheese_canyons")
+    dump("noise_settings/realistic_canyons.json", canyons)
+
+
+def overworld_preset(settings_id):
+    """Verilen noise_settings ile overworld + vanilla nether/end preset'i."""
+    return {
+        "dimensions": {
+            "minecraft:overworld": {
+                "type": "minecraft:overworld",
+                "generator": {
+                    "type": "minecraft:noise",
+                    "biome_source": {"type": "minecraft:multi_noise",
+                                     "preset": "minecraft:overworld"},
+                    "settings": settings_id,
+                },
+            },
+            "minecraft:the_nether": {
+                "type": "minecraft:the_nether",
+                "generator": {
+                    "type": "minecraft:noise",
+                    "biome_source": {"type": "minecraft:multi_noise",
+                                     "preset": "minecraft:nether"},
+                    "settings": "minecraft:nether",
+                },
+            },
+            "minecraft:the_end": {
+                "type": "minecraft:the_end",
+                "generator": {
+                    "type": "minecraft:noise",
+                    "biome_source": {"type": "minecraft:the_end"},
+                    "settings": "minecraft:end",
+                },
+            },
+        }
+    }
+
+
+def write_res(rel, obj):
+    path = RES / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(obj, indent=2) + "\n")
+    print(f"  yazildi: {path.relative_to(ROOT)}")
+
+
+def write_presets_tag_lang():
+    for pid, _, _ in WORLD_TYPES:
+        write_res(f"data/realisticworld/worldgen/world_preset/{pid}.json",
+                  overworld_preset(f"realisticworld:{pid}"))
+    # Dunya Turu dugmesindeki liste (#minecraft:normal etiketi)
+    write_res("data/minecraft/tags/worldgen/world_preset/normal.json",
+              {"replace": False,
+               "values": [f"realisticworld:{pid}" for pid, _, _ in WORLD_TYPES]})
+    # Dil dosyalari: generator.<ns>.<preset_id>
+    write_res("assets/realisticworld/lang/en_us.json",
+              {f"generator.realisticworld.{pid}": en for pid, en, _ in WORLD_TYPES})
+    write_res("assets/realisticworld/lang/tr_tr.json",
+              {f"generator.realisticworld.{pid}": tr for pid, _, tr in WORLD_TYPES})
 
 
 if __name__ == "__main__":

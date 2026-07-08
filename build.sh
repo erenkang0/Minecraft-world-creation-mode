@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="1.1.1+26.2"
+VERSION="1.2.0+26.2"
 JAR="dist/realisticworld-${VERSION}.jar"
 
 python3 tools/validate.py

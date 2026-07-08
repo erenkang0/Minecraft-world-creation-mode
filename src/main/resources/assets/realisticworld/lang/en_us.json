@@ -1,3 +1,6 @@
 {
-	"generator.realisticworld.realistic": "Realistic World"
+  "generator.realisticworld.realistic": "Realistic World",
+  "generator.realisticworld.realistic_islands": "Realistic Islands",
+  "generator.realisticworld.realistic_pangaea": "Realistic Pangaea",
+  "generator.realisticworld.realistic_canyons": "Realistic Canyons"
 }

@@ -1,6 +1,9 @@
 {
-	"replace": false,
-	"values": [
-		"realisticworld:realistic"
-	]
+  "replace": false,
+  "values": [
+    "realisticworld:realistic",
+    "realisticworld:realistic_islands",
+    "realisticworld:realistic_pangaea",
+    "realisticworld:realistic_canyons"
+  ]
 }

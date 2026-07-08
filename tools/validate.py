@@ -259,15 +259,15 @@ def main():
     if errors:
         sys.exit(1)
 
-    # 2. referans butunlugu (noise/density function dosyalari;
-    #    template_pool ve structure ayrica 5. adimda ele alinir)
+    # 2. referans butunlugu — yalnizca density function ve noise_settings
+    #    graflarindaki DF/noise referanslari. placed_feature/biome/template_pool/
+    #    structure/world_preset baska tur referanslar tasir; burada haric.
     df_refs, noise_refs = set(), set()
     for p, d in docs.items():
         sp = str(p)
-        if ("worldgen" in sp and p.suffix == ".json"
-                and "world_preset" not in sp
-                and "template_pool" not in sp
-                and "worldgen/structure" not in sp):
+        if p.suffix == ".json" and (
+                "worldgen/density_function" in sp
+                or "worldgen/noise_settings" in sp):
             collect_refs(d, df_refs, noise_refs)
 
     for ref in sorted(df_refs):
@@ -296,13 +296,18 @@ def main():
                 err(f"vanilla'da yok: noise {ref}")
     print(f"{len(df_refs)} density function + {len(noise_refs)} noise referansi kontrol edildi")
 
-    # 3. sema (anahtar kumesi) kontrolu — vanilla korpusuna karsi
+    # 3. sema (anahtar kumesi) kontrolu — vanilla korpusuna karsi.
+    #    Yalnizca density_function + noise_settings; bunlar vanilla yapisini
+    #    birebir yansitir. Biyomlar/preset'ler vanilla'dan toptan turetildigi
+    #    icin haric (kendi tipleri korpusta olmayabilir).
     vanilla_types = {}
     for p in REF_DIR.rglob("*.json"):
         collect_type_keysets(json.loads(p.read_text()), vanilla_types)
     checked = 0
     for p, d in docs.items():
-        if WG not in p.parents and not str(p).startswith(str(WG)):
+        sp = str(p)
+        if ("worldgen/density_function" not in sp
+                and "worldgen/noise_settings" not in sp):
             continue
         mine = {}
         collect_type_keysets(d, mine)
@@ -327,13 +332,36 @@ def main():
     # 5. koy dosyalari
     validate_villages(docs, online)
 
-    # world preset etiketi tutarliligi
+    # world preset etiketi tutarliligi: her etiket degeri icin preset dosyasi
+    # ve preset'in refere ettigi noise_settings mevcut olmali.
     tag = docs[RES / "data/minecraft/tags/worldgen/world_preset/normal.json"]
-    assert tag["values"] == ["realisticworld:realistic"] and tag["replace"] is False
-    assert (WG / "world_preset/realistic.json").exists()
-    preset = docs[WG / "world_preset/realistic.json"]
-    assert preset["dimensions"]["minecraft:overworld"]["generator"]["settings"] \
-        == "realisticworld:realistic"
+    assert tag["replace"] is False and tag["values"], "bos veya replace=true normal etiketi"
+    for val in tag["values"]:
+        assert val.startswith("realisticworld:"), f"beklenmeyen preset: {val}"
+        pid = val.split(":", 1)[1]
+        pf = WG / f"world_preset/{pid}.json"
+        assert pf.exists(), f"eksik world_preset: {val}"
+        settings_id = docs[pf]["dimensions"]["minecraft:overworld"]["generator"]["settings"]
+        assert settings_id.startswith("realisticworld:"), settings_id
+        ns_file = WG / f"noise_settings/{settings_id.split(':', 1)[1]}.json"
+        assert ns_file.exists(), f"{val}: eksik noise_settings {settings_id}"
+        # Acik biyom listesi varsa: her realisticworld: biyomunun dosyasi olmali
+        bs = docs[pf]["dimensions"]["minecraft:overworld"]["generator"]["biome_source"]
+        if bs.get("type") == "minecraft:multi_noise" and "biomes" in bs:
+            biome_refs = {e["biome"] for e in bs["biomes"]}
+            for bref in sorted(biome_refs):
+                if bref.startswith("realisticworld:"):
+                    bf = WG / f"biome/{bref.split(':', 1)[1]}.json"
+                    assert bf.exists(), f"{val}: eksik ozel biyom {bref}"
+            custom = sorted(b for b in biome_refs if b.startswith("realisticworld:"))
+            print(f"  {val}: {len(bs['biomes'])} biyom girisi, "
+                  f"{len(custom)} ozel biyom")
+    # dil dosyalarinda her preset icin ceviri anahtari olmali
+    for lang in ("en_us", "tr_tr"):
+        lg = docs[RES / f"assets/realisticworld/lang/{lang}.json"]
+        for val in tag["values"]:
+            key = f"generator.realisticworld.{val.split(':', 1)[1]}"
+            assert key in lg, f"{lang}: eksik ceviri {key}"
 
     for w in warnings:
         print(f"  UYARI: {w}")

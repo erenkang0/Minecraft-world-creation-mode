@@ -10,6 +10,31 @@ içermez, bu sayede hafiftir ve sürüm geçişlerinde kolay güncellenir.
 
 ## Özellikler
 
+### Dünya Türleri (Dünya Türü listesinde ayrı seçenekler)
+Dünya oluşturma ekranındaki **Dünya Türü** düğmesinde artık dört seçenek var:
+- **Gerçekçi Dünya** — bayrak mod; aşağıdaki tüm arazi, mağara, jeoloji ve
+  özel biyom özelliklerini içerir.
+- **Gerçekçi Adalar** — deniz seviyesi yükseltilmiş takımada dünyası; ovalar
+  su altında, tepeler ada olur.
+- **Gerçekçi Tek Kıta** — deniz seviyesi düşürülmüş; kıta sahanlığı açığa
+  çıkar, geniş bağlantılı karalar.
+- **Gerçekçi Kanyonlar** — `factor` genliği artırılmış keskin rölyef +
+  düşük deniz seviyesi: derin kanyonlar ve dik zirveler.
+
+### Özel Biyomlar (Gerçekçi Dünya'da)
+Overworld biyom kaynağına vanilla biyomların yanına eklenir:
+- **Yüksek Bozkır** (yüzey) — yüksek, kurak, açık renk otlak plato.
+- **Sisli Vadi** (yüzey) — serin, nemli, gri gökyüzülü vadi (ladinli).
+- **Volkanik Bölge** (yüzey) — sıcak, çorak, yağışsız kayalık.
+- **Dev Sarkıt Mağarası** (mağara) — büyük dikit/sarkıtlarla dolu kaverna.
+- **Kristal Mağara** (mağara) — mor/kristal tonlu yeraltı biyomu.
+
+### Gerçekçi Cevher Dağılımı
+Cevherler derinliğe/irtifaya göre yeniden dağıtılır (tüm dünya türlerinde):
+demir dağlarda bol, bakır orta kuşakta, kömür yüzeye yakın, altın/kızıltaş/
+lapis derinde, **elmas yalnızca derin bantta** (y < -32), zümrüt yüksek
+dağlara özgü.
+
 ### Arazi
 - **Kıta ölçeğinde kara parçaları** — kıtasallık/erozyon alanları 4× büyük
   dalga boylu noise ile üretilir; geniş okyanuslar, gerçekçi kıyı şeritleri.
@@ -71,20 +96,26 @@ içermez, bu sayede hafiftir ve sürüm geçişlerinde kolay güncellenir.
 ## Geliştirme
 
 ```bash
-python3 tools/generate.py --fetch   # vanilla 26.2 verisinden worldgen JSON'larini uret
-python3 tools/villages.py --fetch   # koy meydani/bina NBT'lerini ve havuzlari uret
-python3 tools/validate.py --online  # referans + sema + NBT dogrulamasi
-./build.sh                          # dist/ altina jar paketle
+./tools/regen.sh --fetch   # tum worldgen verisini dogru sirada yeniden uret + dogrula
+./build.sh                 # dist/ altina jar paketle
 ```
 
-- `tools/generate.py` — vanilla 26.2 worldgen verisini (misode/mcmeta aynası)
-  indirir ve üzerine bu modun tüm matematiksel dönüşümlerini uygular. Her
-  dönüşüm betiğin başında sabitlerle belgelenmiştir.
-- `tools/villages.py` — köy meydanı ve özel binaları NBT yapı şablonu olarak
-  sıfırdan üretir (harici kütüphane yok), jigsaw havuzlarını ve yapı
-  tanımlarını günceller.
-- `tools/validate.py` — üretilen veriyi vanilla 26.2 şemasına karşı doğrular
-  (JSON şeması, referans bütünlüğü, NBT tutarlılığı).
+Üreteçler (sıra önemli — `tools/regen.sh` bunu uygular):
+- `tools/generate.py` — arazi + mağara matematiği + ek dünya türleri
+  (islands/pangaea/canyons); vanilla 26.2 worldgen'i temel alır.
+- `tools/villages.py` — köy meydanı ve özel binaları NBT olarak sıfırdan üretir,
+  jigsaw havuzlarını ve yapı tanımlarını günceller.
+- `tools/ores.py` — cevher placed_feature'larını derinliğe göre yeniden dağıtır.
+- `tools/biomes.py` — özel biyomları üretir ve bayrak preset'inin biyom
+  kaynağını (vanilla + özel) **açık listeye** çevirir; **en son çalışmalıdır**.
+- `tools/validate.py` — JSON şeması, referans bütünlüğü, NBT ve biyom tutarlılığı.
+- `tools/refs/overworld_biome_parameters.json` — vanilla 26.2 overworld biyom
+  parametre listesi (`gen-params` workflow'u üretir); özel biyom enjeksiyonunun
+  temeli.
+
+Uçtan uca doğrulama CI'da gerçek bir Fabric 26.2 sunucusu açıp preset'le chunk
+üreterek yapılır (`.github/workflows/verify.yml`) — dünya oluşturma ekranını
+kilitleyebilecek veri hataları burada yakalanır.
 - Mod veri odaklı olduğu için jar, `src/main/resources` içeriğinin arşividir;
   Gradle/Loom gerekmez.
 

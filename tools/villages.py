@@ -546,7 +546,11 @@ def main():
             struct_json["max_distance_from_center"] == 80, \
             f"beklenmeyen vanilla degerleri: {biome}"
         struct_json["size"] = 7
-        struct_json["max_distance_from_center"] = 128
+        # Codec kurali: max_distance_from_center + arazi uyarlama payi <= 128.
+        # terrain_adaptation "beard_thin" 12 blok pay ekler, dolayisiyla
+        # gecerli ust sinir 116'dir (vanilla 80). 128 kullanmak tum koy
+        # yapilarinin kayit yuklemesini bozar -> dunya ekrani "Hazirlaniyor"da asilir.
+        struct_json["max_distance_from_center"] = 116
         struct_json["start_pool"] = f"realisticworld:village/{biome}/town_centers"
         dump_json(f"data/minecraft/worldgen/structure/village_{biome}.json", struct_json)
 

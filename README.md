@@ -33,7 +33,8 @@ içermez, bu sayede hafiftir ve sürüm geçişlerinde kolay güncellenir.
 
 ### Büyük Köy Güncellemesi
 - **Çok daha büyük köyler** — jigsaw derinliği 6→7, merkezden azami uzaklık
-  80→128 blok: köyler yaklaşık iki kat alana yayılır.
+  80→116 blok (codec üst sınırı): köyler belirgin biçimde daha geniş alana
+  yayılır.
 - **Planlı köy meydanı** — her köy 15×15 taş döşeli bir meydandan başlar:
   merkezi çeşme, köy çanı, pazar tezgâhları, fener direkleri, banklar.
   Meydandan **8 sokak çıkışı** (vanilla 3-4) köyü her yöne doğal biçimde

@@ -216,8 +216,15 @@ def validate_villages(docs, online):
         elif "worldgen/structure" in sp and p.suffix == ".json":
             if not (0 <= d["size"] <= 7):
                 err(f"{p.name}: size codec siniri disinda (0..7): {d['size']}")
-            if not (1 <= d["max_distance_from_center"] <= 128):
-                err(f"{p.name}: max_distance_from_center 1..128 disi")
+            # Codec: max_distance_from_center + arazi uyarlama payi <= 128.
+            # Pay: none=0, bury/beard_thin/beard_box/encapsulate=12.
+            blur = 0 if d.get("terrain_adaptation", "none") == "none" else 12
+            mdc = d["max_distance_from_center"]
+            if not (1 <= mdc <= 128):
+                err(f"{p.name}: max_distance_from_center 1..128 disi: {mdc}")
+            if mdc + blur > 128:
+                err(f"{p.name}: max_distance_from_center + arazi payi ({blur}) "
+                    f"128'i asiyor: {mdc}+{blur}")
             sp_pool = d["start_pool"]
             if sp_pool.startswith("realisticworld:"):
                 f = RES / "data/realisticworld/worldgen/template_pool" / \

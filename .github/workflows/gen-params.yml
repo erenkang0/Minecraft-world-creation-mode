@@ -7,11 +7,18 @@ name: Vanilla biyom-parametre dökümü
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   dump:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/minecraft-world-gen-mod-pfs14i
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -41,3 +48,19 @@ jobs:
           name: biome-parameters
           path: generated/reports/biome_parameters/minecraft/overworld.json
           if-no-files-found: error
+
+      - name: Referans olarak repoya isle
+        run: |
+          set -euo pipefail
+          mkdir -p tools/refs
+          cp generated/reports/biome_parameters/minecraft/overworld.json \
+             tools/refs/overworld_biome_parameters.json
+          git config user.name "erenkang0"
+          git config user.email "erenoyunda2005159357@gmail.com"
+          git add tools/refs/overworld_biome_parameters.json
+          if git diff --cached --quiet; then
+            echo "degisiklik yok"
+          else
+            git commit -m "chore: vanilla 26.2 overworld biome_parameters dump"
+            git push origin HEAD:claude/minecraft-world-gen-mod-pfs14i
+          fi

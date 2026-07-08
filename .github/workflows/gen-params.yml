@@ -1,0 +1,43 @@
+name: Vanilla biyom-parametre dökümü
+
+# Ozel biyomlari overworld multi_noise kaynagina enjekte edebilmek icin
+# vanilla 26.2 overworld biome_parameters listesini uretir ve artifact yapar.
+# Bir kez calistirilir; cikti tools/refs/ altina islenir.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Vanilla server jar'ini indir
+        run: |
+          set -euo pipefail
+          MANIFEST=https://piston-meta.mojang.com/mc/game/version_manifest_v2.json
+          VJSON=$(curl -sSf "$MANIFEST" | jq -r '.versions[] | select(.id=="26.2") | .url')
+          echo "version json: $VJSON"
+          SERVER=$(curl -sSf "$VJSON" | jq -r '.downloads.server.url')
+          echo "server: $SERVER"
+          curl -sSfL -o server.jar "$SERVER"
+
+      - name: biome_parameters uret
+        run: |
+          set -euo pipefail
+          java -DbundlerMainClass=net.minecraft.data.Main -jar server.jar --reports
+          echo "--- uretilen raporlar ---"
+          find generated/reports -maxdepth 3 -type d | head -40
+          ls -la generated/reports/biome_parameters/minecraft/ || true
+
+      - name: Artifact yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: biome-parameters
+          path: generated/reports/biome_parameters/minecraft/overworld.json
+          if-no-files-found: error
